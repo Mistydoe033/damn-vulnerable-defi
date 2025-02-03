@@ -19,3 +19,14 @@ A related on-chain exchange is selling (absurdly overpriced) collectibles called
 This price is fetched from an on-chain oracle, based on 3 trusted reporters: `0x188...088`, `0xA41...9D8` and `0xab3...a40`.
 
 Starting with just 0.1 ETH in balance, pass the challenge by rescuing all ETH available in the exchange. Then deposit the funds into the designated recovery account.
+
+
+# Attack
+
+so theres on-chain leaked info, and I need to figure out how to decode it.
+
+Private keys are basically the holy grail in blockchain, so let’s see if there’s a way to break this down:
+
+First, gotta clean up the string (get rid of spaces).
+Then, convert hex to ASCII and see what the Base64 string turns into.
+Finally, check if any of the private keys actually work.

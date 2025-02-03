@@ -79,43 +79,55 @@ contract TheRewarderDistributor {
 
     // Allow claiming rewards of multiple tokens in a single transaction
     function claimRewards(Claim[] memory inputClaims, IERC20[] memory inputTokens) external {
-        Claim memory inputClaim;
-        IERC20 token;
-        uint256 bitsSet; // accumulator
-        uint256 amount;
+        Claim memory inputClaim; // A single claim structure
+        IERC20 token; // Token to transfer rewards
+        uint256 bitsSet; // accumulator for tracking processed claims in a batch
+        uint256 amount; // amount to be transferred for the current claim
 
+        // Iterate through each claim in the inputClaims array
         for (uint256 i = 0; i < inputClaims.length; i++) {
-            inputClaim = inputClaims[i];
+            inputClaim = inputClaims[i]; // Get the current claim
 
-            uint256 wordPosition = inputClaim.batchNumber / 256;
-            uint256 bitPosition = inputClaim.batchNumber % 256;
+            uint256 wordPosition = inputClaim.batchNumber / 256; // Determine the position in the batch
+            uint256 bitPosition = inputClaim.batchNumber % 256; // Determine the specific bit in the word
 
+            // Check if the token is different from the previous one
             if (token != inputTokens[inputClaim.tokenIndex]) {
+                // If a token is already set and it has been processed, revert
                 if (address(token) != address(0)) {
                     if (!_setClaimed(token, amount, wordPosition, bitsSet)) revert AlreadyClaimed();
                 }
 
-                token = inputTokens[inputClaim.tokenIndex];
-                bitsSet = 1 << bitPosition; // set bit at given position
-                amount = inputClaim.amount;
+                token = inputTokens[inputClaim.tokenIndex]; // Update the token for the current claim
+                bitsSet = 1 << bitPosition; // Set the bit at the specific position for this claim
+                amount = inputClaim.amount; // Set the amount for the current claim
             } else {
-                bitsSet = bitsSet | 1 << bitPosition;
-                amount += inputClaim.amount;
+                // If the token is the same as the previous one, just accumulate the claim amount
+                bitsSet = bitsSet | 1 << bitPosition; // Update bitsSet to include the current claim
+                amount += inputClaim.amount; // Accumulate the total amount for the current batch
             }
 
-            // for the last claim
+            // Vulnerability: The claim is marked as processed only after the last occurrence.
+            // This allows a malicious actor to receive multiple reward payouts for the same claim
+            // before the system recognizes it as processed.
+            
+            // For the last claim in the array, ensure it is properly processed
             if (i == inputClaims.length - 1) {
                 if (!_setClaimed(token, amount, wordPosition, bitsSet)) revert AlreadyClaimed();
             }
 
+            // Generate the leaf to verify the Merkle proof for the claim
             bytes32 leaf = keccak256(abi.encodePacked(msg.sender, inputClaim.amount));
-            bytes32 root = distributions[token].roots[inputClaim.batchNumber];
+            bytes32 root = distributions[token].roots[inputClaim.batchNumber]; // Get the Merkle root for the batch
 
+            // Verify the Merkle proof for the claim
             if (!MerkleProof.verify(inputClaim.proof, root, leaf)) revert InvalidProof();
 
+            // Transfer the reward amount to the claimant
             inputTokens[inputClaim.tokenIndex].transfer(msg.sender, inputClaim.amount);
         }
     }
+
 
     function _setClaimed(IERC20 token, uint256 amount, uint256 wordPosition, uint256 newBits) private returns (bool) {
         uint256 currentWord = distributions[token].claims[msg.sender][wordPosition];
